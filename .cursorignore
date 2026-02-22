@@ -1,0 +1,15 @@
+# env secrets
+.env
+.private
+
+# 2) (Optional) Make it global for all projects
+
+# Open User Settings, search “Global Cursor Ignore”, and add the same patterns there. 
+# Cursor - Community Forum
+
+# 3) If you literally also want to block writing at the filesystem level
+
+# Make the files read-only (so even accidental edits fail):
+
+# chmod a-w .env
+# chmod a-w **/*.private.ts

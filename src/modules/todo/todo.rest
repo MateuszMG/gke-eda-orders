@@ -1,0 +1,33 @@
+### Todo endpoints
+### Base URL – adjust host/port as needed
+@baseUrl = http://localhost:3000
+
+### Get all todos  #   
+GET {{baseUrl}}/todos
+Content-Type: application/json
+# Authorization: Bearer {{token}}
+
+### Get todo by id
+GET {{baseUrl}}/todos/1
+
+### Add todo
+POST {{baseUrl}}/todos
+Content-Type: application/json
+
+{
+  "title": "My first todo",
+  "completed": false
+}
+
+### Update todo
+PATCH {{baseUrl}}/todos/1
+Content-Type: application/json
+
+{
+  "title": "Updated title",
+  "completed": true
+}
+
+### Delete todo
+DELETE {{baseUrl}}/todos/1
+
