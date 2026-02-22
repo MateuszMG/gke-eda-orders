@@ -1,5 +1,5 @@
 {
-  "name": "empty-ts",
+  "name": "gke-eda-orders",
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
@@ -10,12 +10,14 @@
     "start": "node dist/index.js"
   },
   "license": "ISC",
-  "description": "",
+  "description": "Orders microservice with Pub/Sub event-driven architecture",
   "dependencies": {
+    "@google-cloud/pubsub": "^4.9.0",
     "axios": "^1.13.5",
     "dotenv": "17.2.3",
     "express": "^5.2.1",
     "pg": "^8.16.0",
+    "uuid": "^11.1.0",
     "winston": "^3.19.0",
     "yup": "^1.7.1"
   },

@@ -1,0 +1,63 @@
+@baseUrl = http://localhost:3000
+
+### Health Check
+GET {{baseUrl}}/
+
+### Health Status
+GET {{baseUrl}}/health
+
+### Get All Orders
+GET {{baseUrl}}/orders
+
+### Get Order by ID
+GET {{baseUrl}}/orders/{{orderId}}
+
+### Create Order
+# @name createOrder
+POST {{baseUrl}}/orders
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "productId": "product-123",
+      "quantity": 2,
+      "priceAtOrder": 29.99
+    },
+    {
+      "productId": "product-456",
+      "quantity": 1,
+      "priceAtOrder": 49.99
+    }
+  ]
+}
+
+### Set Order ID from response
+@orderId = {{createOrder.response.body.res.order.id}}
+
+### Update Order Status
+PATCH {{baseUrl}}/orders/{{orderId}}
+Content-Type: application/json
+
+{
+  "status": "confirmed"
+}
+
+### Update Order to Shipped
+PATCH {{baseUrl}}/orders/{{orderId}}
+Content-Type: application/json
+
+{
+  "status": "shipped"
+}
+
+### Update Order to Delivered
+PATCH {{baseUrl}}/orders/{{orderId}}
+Content-Type: application/json
+
+{
+  "status": "delivered"
+}
+
+### Delete Order
+DELETE {{baseUrl}}/orders/{{orderId}}

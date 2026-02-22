@@ -1,6 +1,6 @@
 import { env } from './config/appConfig';
 import { app } from './app';
-
+import { initializeSubscribers } from './events/subscriber';
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception', { err });
@@ -12,6 +12,17 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled rejection', { err, promise });
 });
 
-app.listen(env.PORT, () => {
-  console.log(`Server listening on port ${env.PORT}`);
-});
+async function main() {
+  try {
+    await initializeSubscribers();
+    
+    app.listen(env.PORT, () => {
+      console.log(`Orders service listening on port ${env.PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start Orders service', { error });
+    process.exit(1);
+  }
+}
+
+main();

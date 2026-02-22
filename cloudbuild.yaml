@@ -1,75 +1,100 @@
-# Why to use tag ----> enable first trigger on cloud build (because ':latest' does not exists yet), for debugging (wee see 'gcp-products-service:3d4ffc9' )
-# _FOLDER_NAME + _APP_NAME ----> are useful for multiple services/jobs in one repository ------------------------------------------------>but useless if we have only one service/job
-
-# #
-# # Step types (each step runs a container; 'name' = image):
-# #   Build:    gcr.io/cloud-builders/docker, gcr.io/cloud-builders/npm, gcr.io/cloud-builders/gcloud
-# #   Test:     run tests in same or custom image (e.g. node:22-alpine + npm test)
-# #   Lint:     custom image or script (e.g. biome, eslint)
-# #   Deploy:   gcr.io/google.com/cloudsdktool/cloud-sdk (gcloud run deploy, app deploy, etc.)
-# #   Notify:   curl/slack, or use gcr.io/cloud-builders/gcloud (pub/sub)
-# #   Secrets:  gcr.io/google.com/cloudsdktool/cloud-sdk to fetch from Secret Manager
-# #   Any:      any Docker image from GCR, Artifact Registry, or Docker Hub (e.g. node:22-alpine)
-# # Use 'id' and 'waitFor' to order steps. Workspace is /workspace (clone lives there if you use a repo trigger).
-
+# Cloud Build configuration for gke-eda-orders
+# Deploys to GKE (Google Kubernetes Engine)
 
 substitutions:
   _REGION: europe-west1
+  _GKE_CLUSTER: eda-cluster
+  _NAMESPACE: orders
+  _APP_NAME: gke-eda-orders
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # Step 1: Pull previous image for layer cache (skip on first deploy)
+  # Step 1: Pull previous image for layer cache
   - name: 'gcr.io/cloud-builders/docker'
     id: pull-cache
     entrypoint: bash
-    args: ['-c', 'docker pull gcr.io/$PROJECT_ID/$REPO_NAME:latest || true']
+    args: ['-c', 'docker pull gcr.io/$PROJECT_ID/${_APP_NAME}:latest || true']
 
-  # Step 2: Build Docker Image (reuses layers from pull-cache)
+  # Step 2: Build Docker Image
   - name: 'gcr.io/cloud-builders/docker'
     id: build
     waitFor: ['pull-cache']
     args:
       - 'build'
       - '--cache-from'
-      - 'gcr.io/$PROJECT_ID/$REPO_NAME:latest'
+      - 'gcr.io/$PROJECT_ID/${_APP_NAME}:latest'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/$REPO_NAME:${SHORT_SHA}'
+      - 'gcr.io/$PROJECT_ID/${_APP_NAME}:${SHORT_SHA}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_APP_NAME}:latest'
       - '.'
 
-  # Step 3: Push image (required for deploy)
+  # Step 3: Push image with SHORT_SHA tag
   - name: 'gcr.io/cloud-builders/docker'
     id: push
     waitFor: ['build']
-    args: ['push', 'gcr.io/$PROJECT_ID/$REPO_NAME:${SHORT_SHA}']
+    args: ['push', 'gcr.io/$PROJECT_ID/${_APP_NAME}:${SHORT_SHA}']
 
-  # Step 4: Deploy to Cloud Run (use SHORT_SHA for traceability)
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: deploy
-    waitFor: ['push']
-    entrypoint: gcloud
-    args:
-      - run
-      - deploy
-      - $REPO_NAME
-      - --image
-      - gcr.io/$PROJECT_ID/$REPO_NAME:${SHORT_SHA}
-      - --region
-      - $_REGION
-      - '--set-secrets'
-      - 'DB_POSTGRESQL_NAME=DB_POSTGRESQL_NAME:latest,DB_POSTGRESQL_PASSWORD=DB_POSTGRESQL_PASSWORD:latest,DB_POSTGRESQL_HOST=DB_POSTGRESQL_HOST:latest,JWT_SECRET=JWT_SECRET:latest,JWT_ACCESS_EXPIRY=JWT_ACCESS_EXPIRY:latest,JWT_REFRESH_EXPIRY=JWT_REFRESH_EXPIRY:latest,REDIS_HOST=REDIS_HOST:latest'
-      - '--set-env-vars'
-      - 'TZ=Europe/Warsaw'
-      - '--set-env-vars'
-      - 'NODE_ENV=${_NODE_ENV}'
-
-  # Step 5: Tag and push latest for next build's cache (runs after push, in parallel with deploy)
+  # Step 4: Push latest tag for cache
   - name: 'gcr.io/cloud-builders/docker'
+    id: push-latest
+    waitFor: ['build']
+    args: ['push', 'gcr.io/$PROJECT_ID/${_APP_NAME}:latest']
+
+  # Step 5: Get GKE credentials
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: get-credentials
     waitFor: ['push']
-    entrypoint: bash
     args:
-      - '-c'
-      - |
-        docker tag gcr.io/$PROJECT_ID/$REPO_NAME:${SHORT_SHA} gcr.io/$PROJECT_ID/$REPO_NAME:latest
-        docker push gcr.io/$PROJECT_ID/$REPO_NAME:latest
+      - 'container'
+      - 'clusters'
+      - 'get-credentials'
+      - '${_GKE_CLUSTER}'
+      - '--region'
+      - '${_REGION}'
+      - '--project'
+      - '$PROJECT_ID'
+
+  # Step 6: Apply Kubernetes manifests
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: apply-manifests
+    waitFor: ['get-credentials']
+    args:
+      - 'apply'
+      - '-f'
+      - 'k8s/'
+    env:
+      - 'CLOUDSDK_COMPUTE_REGION=${_REGION}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}'
+
+  # Step 7: Update deployment image
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: deploy
+    waitFor: ['apply-manifests']
+    args:
+      - 'set'
+      - 'image'
+      - 'deployment/orders'
+      - 'orders=gcr.io/$PROJECT_ID/${_APP_NAME}:${SHORT_SHA}'
+      - '-n'
+      - '${_NAMESPACE}'
+    env:
+      - 'CLOUDSDK_COMPUTE_REGION=${_REGION}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}'
+
+  # Step 8: Wait for rollout
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: rollout-status
+    waitFor: ['deploy']
+    args:
+      - 'rollout'
+      - 'status'
+      - 'deployment/orders'
+      - '-n'
+      - '${_NAMESPACE}'
+      - '--timeout=300s'
+    env:
+      - 'CLOUDSDK_COMPUTE_REGION=${_REGION}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}'

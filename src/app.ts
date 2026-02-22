@@ -1,8 +1,7 @@
 import express from 'express';
-import {  env } from './config/appConfig';
+import { env } from './config/appConfig';
+import { ordersRouter } from './modules/orders/orders.controller';
 
-
-/** Records request start time and adds timing to response (header + body for JSON objects). */
 function requestTimingMiddleware(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const start = Date.now();
   (req as express.Request & { _startTime?: number })._startTime = start;
@@ -36,13 +35,20 @@ const app = express();
 app.use(express.json());
 app.use(requestTimingMiddleware);
 
-app.get('/', (req, res) => {
-  console.log('Hello World at ' + new Date().toISOString());
-  res.status(200).json({ message: `Node environment: ${env.NODE_ENV} at ${new Date().toISOString()}` });
+app.get('/', (_req, res) => {
+  res.status(200).json({ 
+    service: 'gke-eda-orders',
+    message: `Node environment: ${env.NODE_ENV}`,
+    timestamp: new Date().toISOString(),
+  });
 });
 
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'healthy' });
+});
 
-// Final error handler: send 500 and log
+app.use('/orders', ordersRouter);
+
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const message = err instanceof Error ? err.message : 'Internal server error';
   console.error('Unhandled error', { err });
