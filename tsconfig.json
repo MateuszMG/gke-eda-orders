@@ -6,10 +6,10 @@
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
-    "types": ["jest", "node"],
+    "types": ["node"],
     "skipLibCheck": true,
     "allowJs": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "**/*.test.ts", "**/*.spec.ts", "tests/jest.setup.ts"]
+  "include": ["src"]
 }

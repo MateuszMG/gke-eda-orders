@@ -20,7 +20,7 @@ function handleProductPriceChanged(event: ProductPriceChangedEvent): void {
   });
 }
 
-function createMessageHandler(handler: (event: unknown) => void) {
+function createMessageHandler(handler: (event: any) => void) {
   return (message: Message) => {
     try {
       const data = JSON.parse(message.data.toString());
